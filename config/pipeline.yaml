@@ -1,0 +1,22 @@
+# Configuración NO sensible del pipeline.
+# Credenciales, llaves y webhooks van en .env (ver .env.example). Nunca aquí.
+pipeline:
+  nombre: ingesta_consumos
+  batch_size: 5000
+  reintentos: 3
+
+origen:
+  tipo: archivos_locales      # MinIO se quita (Paso 1): los archivos se leen de data/
+  carpeta_datos: data
+
+destino:
+  tipo: postgres
+  # host, puerto, base y usuarios se leen de .env (variables PG_*)
+
+stream:                       # make stream (Paso 9)
+  particiones: 1              # 1 = se lee en el orden del archivo
+  espera_ms: 10000            # el consumidor termina tras 10 s sin mensajes nuevos
+
+salidas:                      # se pueden borrar: make run las regenera
+  carpeta_out: out
+  carpeta_logs: logs

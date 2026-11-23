@@ -1,0 +1,25 @@
+# Entorno y secretos
+.venv/
+.env
+
+# Generados por el pipeline (make run los regenera)
+out/
+logs/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Datos de origen: contienen PII, nunca van a git
+data/
+
+# Notas de trabajo personales
+CLAUDE.md
+
+# Terraform
+infra/.terraform/
+infra/*.tfstate*
+# infra/.terraform.lock.hcl SÍ se versiona: fija versión y hash de los
+# providers (igual que las versiones exactas de requirements.txt).

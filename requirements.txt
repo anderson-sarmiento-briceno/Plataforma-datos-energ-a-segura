@@ -1,0 +1,11 @@
+# Dependencias del proyecto, con versión fija (reproducible y auditable).
+# Se quitaron requests, urllib3 y Jinja2 del prototipo inicial: nada las usa.
+# pandas 2.x a propósito: soporta Python 3.9–3.14 (la 3.x exige 3.11+ y no
+# sabemos qué Python tiene quien lo corra).
+pandas==2.3.3
+psycopg2-binary==2.9.13
+PyYAML==6.0.3
+python-dotenv==1.2.4
+kafka-python==2.3.3
+cryptography==50.0.2
+pytest==9.1.1

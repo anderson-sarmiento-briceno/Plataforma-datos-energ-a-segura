@@ -1,0 +1,61 @@
+# ---------------------------------------------------------------------------
+# Infraestructura local: solo lo que el pipeline necesita.
+#   - postgres: base de datos (batch).
+#   - redpanda: broker compatible con Kafka (streaming).
+# MinIO se quitó: el pipeline lee de data/ y un servicio sin uso es superficie
+# de ataque (ver DECISIONS.md).
+#
+# Endurecimiento frente al prototipo inicial:
+#   - Credenciales desde .env (nunca escritas aquí). ":?" detiene Compose con
+#     un mensaje claro si falta la variable, en vez de arrancar con un vacío.
+#   - Puertos publicados solo en 127.0.0.1: nadie de la red local llega.
+#   - Imágenes con versión fija: no cambian solas entre una corrida y otra.
+#   - Healthchecks: "make up" espera (--wait) a que estén listos de verdad.
+# ---------------------------------------------------------------------------
+services:
+  postgres:
+    image: postgres:16.15-alpine
+    container_name: energia_pg
+    environment:
+      POSTGRES_USER: ${PG_SUPERUSER:?falta PG_SUPERUSER en .env}
+      POSTGRES_PASSWORD: ${PG_SUPERPASSWORD:?falta PG_SUPERPASSWORD en .env}
+      POSTGRES_DB: ${PG_DATABASE:?falta PG_DATABASE en .env}
+    ports:
+      - "127.0.0.1:${PG_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # -h 127.0.0.1 (TCP) a propósito: durante la inicialización la imagen
+      # levanta un Postgres temporal que solo escucha por socket interno; por
+      # TCP el chequeo no dice "listo" antes de que termine.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  redpanda:
+    image: redpandadata/redpanda:v26.2.6
+    container_name: energia_redpanda
+    command:
+      - redpanda start
+      - --overprovisioned
+      - --smp 1
+      - --memory 512M
+      - --reserve-memory 0M
+      - --node-id 0
+      - --check=false
+      # Un solo listener: lo usan producer y consumidor desde el host.
+      # PLAINTEXT sin TLS/SASL es aceptable solo porque el puerto queda en
+      # 127.0.0.1 (riesgo documentado en THREAT_MODEL.md).
+      - --kafka-addr PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://localhost:9092
+    ports:
+      - "127.0.0.1:9092:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true'"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  pgdata:

@@ -1,0 +1,153 @@
+# ---------------------------------------------------------------------------
+# C1 · Clasificación de datos por columna.
+#
+# Es un artefacto VIVO: el pipeline lo lee (src/clasificacion.py) para decidir
+# qué columnas se cifran antes de guardarlas. Si una columna se reclasifica
+# como Restringido-PII, el pipeline la cifra sin cambiar código (siempre que
+# la tabla tenga su columna BYTEA). Una prueba revisa que TODAS las columnas
+# de la base estén aquí: una columna nueva sin clasificar hace fallar make test.
+#
+# Niveles (de menor a mayor):
+#   Público          se puede publicar sin riesgo.
+#   Interno          uso dentro de la empresa; no identifica personas.
+#   Confidencial     sensible para el negocio o la operación; no es dato personal.
+#   Restringido-PII  dato personal (Ley 1581 de 2012). Se guarda CIFRADO
+#                    (AES-256-GCM) y nunca sale en vistas, logs ni out/.
+#
+# origen: columna del archivo de entrada que se cifra en esa columna BYTEA.
+# ---------------------------------------------------------------------------
+
+niveles: [Público, Interno, Confidencial, Restringido-PII]
+
+tablas:
+  core.dim_cliente:
+    cliente_id:                  Interno
+    razon_social:                Confidencial      # nombre de empresa, no de persona; fuera de la vista
+    nit_hash:                    Confidencial      # HMAC: permite cruzar sin ver el NIT
+    nit_cifrado:                 {nivel: Restringido-PII, origen: nit}
+    email_cifrado:               {nivel: Restringido-PII, origen: email_contacto}
+    celular_cifrado:             {nivel: Restringido-PII, origen: celular_contacto}
+    direccion_cifrada:           {nivel: Restringido-PII, origen: direccion}
+    representante_legal_cifrado: {nivel: Restringido-PII, origen: representante_legal}
+    ciudad:                      Interno
+    departamento:                Interno
+    observaciones_enmascarada:   Confidencial      # PII reemplazada por máscaras (C2)
+    observaciones_cifrada:       {nivel: Restringido-PII, origen: observaciones}
+    archivo_origen:              Interno
+    cargado_en:                  Interno
+
+  core.dim_frontera:
+    frontera_id:     Interno
+    codigo_sic:      Interno
+    cliente_id:      Interno
+    mercado:         Interno
+    operador_red:    Público
+    nivel_tension:   Interno
+    fecha_registro:  Interno
+    estado:          Interno
+    archivo_origen:  Interno
+    cargado_en:      Interno
+
+  core.dim_limite_frontera:
+    frontera_id:     Interno
+    min_kwh:         Interno
+    max_kwh:         Interno
+    archivo_origen:  Interno
+    cargado_en:      Interno
+
+  core.fact_consumo_horario:
+    frontera_id:     Interno
+    ts_medicion:     Interno
+    kwh:             Confidencial      # consumo de un cliente identificable por su frontera
+    version_lectura: Interno
+    calidad_lectura: Interno
+    archivo_origen:  Interno
+    fila_origen:     Interno
+    cargado_en:      Interno
+
+  core.fact_factura:
+    factura_id:                Confidencial
+    frontera_id:               Interno
+    periodo:                   Interno
+    nit_hash:                  Confidencial
+    email_facturacion_cifrado: {nivel: Restringido-PII, origen: email_facturacion}
+    consumo_facturado_kwh:     Confidencial
+    tarifa_cop_kwh:            Confidencial
+    valor_total_cop:           Confidencial
+    metodo_pago_tipo:          Confidencial
+    cuenta_enmascarada:        Confidencial    # ya viene enmascarada (****9999)
+    archivo_origen:            Interno
+    cargado_en:                Interno
+
+  core.fact_factura_componente:
+    factura_id:     Confidencial
+    concepto:       Público
+    valor_cop_kwh:  Confidencial
+
+  cuarentena.consumo_rechazado:
+    archivo_origen: Interno
+    fila_origen:    Interno
+    motivo:         Interno
+    frontera_id:    Interno
+    ts_texto:       Interno
+    valor_texto:    Interno
+    unidad:         Interno
+    version_texto:  Interno
+    registrado_en:  Interno
+
+  cuarentena.factura_huerfana:
+    archivo_origen: Interno
+    factura_id:     Confidencial
+    frontera_id:    Interno
+    periodo:        Interno
+    motivo:         Interno
+    registrado_en:  Interno
+
+  cuarentena.cliente_rechazado:
+    archivo_origen: Interno
+    fila_origen:    Interno
+    cliente_id:     Interno
+    motivo:         Interno
+    registrado_en:  Interno
+
+  cuarentena.archivo_rechazado:
+    archivo:        Interno
+    hash_sha256:    Interno
+    motivo:         Interno
+    registrado_en:  Interno
+
+  control.archivo_procesado:
+    archivo:                 Interno
+    tipo:                    Interno
+    hash_sha256:             Interno
+    estado:                  Interno
+    filas_leidas:            Interno
+    filas_cargadas:          Interno
+    nulos:                   Interno
+    negativos:               Interno
+    outliers:                Interno
+    mwh_convertidos:         Interno
+    duplicados_exactos:      Interno
+    duplicados_conflictivos: Interno
+    correcciones_aplicadas:  Interno
+    procesado_en:            Interno
+
+  audit.bitacora_corridas:
+    id:               Interno
+    corrida_id:       Interno
+    usuario_bd:       Interno
+    etapa:            Interno
+    inicio:           Interno
+    fin:              Interno
+    filas_leidas:     Interno
+    filas_cargadas:   Interno
+    filas_rechazadas: Interno
+    resultado:        Interno
+    tipo_error:       Interno
+
+  # Lo único que ve el rol analista: ninguna columna por encima de Confidencial.
+  analytics.v_consumo_mensual:
+    frontera_id:     Interno
+    mes:             Interno
+    consumo_kwh:     Confidencial
+    horas_con_dato:  Interno
